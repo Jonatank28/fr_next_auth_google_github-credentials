@@ -1,64 +1,80 @@
-import { PrismaAdapter } from '@auth/prisma-adapter'
-import { AuthOptions } from 'next-auth'
-import { Adapter } from 'next-auth/adapters'
-import GoogleProvider from 'next-auth/providers/google'
-import GitHubProvider from 'next-auth/providers/github'
-import CredentialProvider from 'next-auth/providers/credentials'
-import { db } from './prisma'
-import bcrypt from 'bcrypt';
 
-export const authOptions: AuthOptions = {
-    adapter: PrismaAdapter(db) as Adapter,
-    providers: [
-        GitHubProvider({
-            clientId: process.env.GITHUB_ID as string,
-            clientSecret: process.env.GITHUB_SECRET as string,
-        }),
-        GoogleProvider({
-            clientId: process.env.GOOGLE_CLIENT_ID as string,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-        }),
-        CredentialProvider({
-            name: "credentials",
-            credentials: {
-                email: { label: "Email", type: "text" },
-                password: { label: "Password", type: "password" },
-            },
-            async authorize(credentials, req) : Promise<any>{
+import { PrismaAdapter } from "@next-auth/prisma-adapter";
+import { compare } from "bcrypt";
+import type { NextAuthOptions } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+import GitHubProvider from "next-auth/providers/github";
+import GoogleProvider from "next-auth/providers/google";
+import { db } from "./prisma";
 
-                console.log("Authorize method", credentials)
-
-
-                if(!credentials?.email || !credentials?.password) throw new Error("Data missing") 
-
-                const user = await db.user.findUnique({
-                    where:{
-                        email: credentials?.email
-                    }
-                })
-
-                if(!user || !user.hashedPassword) {
-                    throw new Error("Users not registered via credentials")
-                }
-
-                const matchPassword = await bcrypt.compare(credentials.password, user.hashedPassword)
-                if(!matchPassword)
-                    throw new Error("Incorrect password or unregistered user")
-
-                return user
-            }
-        })
-    ],
-    callbacks: {
-        async session({ session, user }) {
-            session.user = { ...session.user, id: user.id } as {
-                id: string
-                name: string
-                email: string
-            }
-
-            return session
+export const authOptions: NextAuthOptions = {
+  adapter: PrismaAdapter(db as any),
+  session: {
+    strategy: "jwt",
+  },
+  providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID as string,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+    }),
+    GitHubProvider({
+      clientId: process.env.GITHUB_ID as string,
+      clientSecret: process.env.GITHUB_SECRET as string,
+    }),
+    CredentialsProvider({
+      name: "Sign in",
+      id: "credentials",
+      credentials: {
+        email: {
+          label: "Email",
+          type: "email",
+          placeholder: "example@example.com",
         },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials.password) {
+          return null;
+        }
+
+        const user = await db.user.findUnique({
+          where: {
+            email: credentials.email,
+          },
+        });
+
+        if (!user || !(await compare(credentials.password, user.hashedPassword!))) {
+          return null;
+        }
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+        };
+      },
+    }),
+  ],
+  callbacks: {
+    session: ({ session, token }) => {
+      return {
+        ...session,
+        user: {
+          ...session.user,
+          id: token.id,
+        },
+      };
     },
-    secret: process.env.NEXT_AUTH_SECRET,
-}
+    jwt: ({ token, user }) => {
+      if (user) {
+        const u = user as unknown as any;
+        return {
+          ...token,
+          id: u.id,
+        };
+      }
+      return token;
+    },
+  },
+  secret: process.env.NEXTAUTH_SECRET
+};

@@ -12,6 +12,7 @@ import {
   Button,
 } from '@nextui-org/react'
 import { signOut } from 'next-auth/react'
+import { ThemeSwitch } from './ThemeSwitcher'
 
 export default function Header() {
   const menuItems = [
@@ -61,6 +62,9 @@ export default function Header() {
       </NavbarContent>
 
       <NavbarContent justify="end">
+        <NavbarItem>
+          <ThemeSwitch />
+        </NavbarItem>
         <NavbarItem>
           <Button
             color="warning"
