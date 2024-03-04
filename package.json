@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "migrate": "npx prisma migrate dev",
+    "generate": "npx prisma generate",
+    "push": "npx prisma db push",
+    "studio": "npx prisma studio"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^1.4.0",
